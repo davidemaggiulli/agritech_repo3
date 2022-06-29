@@ -192,7 +192,77 @@ GROUP BY C.Id, C.Name;
 -- Ingressi: Nome comune, nome latino, giardino, esotica, floreale, codice fornitore, prezzo di vendita
 -- nb: deve essere inserito di default un listino per la nuova pianta (da oggi a NULL) con il prezzo passato
 
+DELIMITER $$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `InsertPlant`(nomeC VARCHAR(100), nomeL VARCHAR(100), gard BIT, ex BIT, fl BIT, supplId INT, salePrice DECIMAL(8,4), OUT msg varchar(255))
+    DETERMINISTIC
+    COMMENT 'Crea una nuova pianta con annesso listino'
+BEGIN
+
+DECLARE exit HANDLER FOR sqlexception, sqlwarning
+BEGIN
+	SET msg = 'Errore in inserimento';
+	ROLLBACK;
+END;
+	
+    IF IFNULL(nomeL,'') = '' THEN
+		SET nomeL = nomeC;
+	END IF;
+    
+
+
+START TRANSACTION;
+    INSERT INTO Plant(Id, LatName, ComName, Garden, Exotic, Flowered, SupplierId)
+    VALUES (NULL, nomeL, nomeC, IFNULL(gard,0), IFNULL(ex,0), IFNULL(fl,0), supplId);
+    
+    INSERT INTO PriceList(StartDate, PlantId, Price, EndDate)
+    VALUES (DATE(NOW()), LAST_INSERT_ID(), salePrice, NULL);
+COMMIT;
+END
+
+DELIMITER ;
+
+
 -- Creare una procedura che permetta di associare ad una pianta un colore 
 -- Ingressi: codice pianta, codice colore
+DROP PROCEDURE AddColorToPlant
+DELIMITER $$
+CREATE PROCEDURE AddColorToPlant(plId INT, cId MEDIUMINT, OUT msg VARCHAR(255))
+proc_label: BEGIN
+
+	IF IFNULL((SELECT Flowered FROM Plant WHERE Id = plId) ,0) = 0 THEN
+		BEGIN
+			SET msg = 'La pianta non è tipo floreale';
+			LEAVE proc_label;
+        END;
+    END IF;
+    
+	INSERT INTO plant_flowercolor
+    VALUES (plId, cId);
+    SET msg = 'Colorazione aggiunta correttamente';
+END $$
+
+DELIMITER ;
+
+CREATE user pippo
+CREATE USER 'user_gardenshop'@'localhost' IDENTIFIED WITH caching_sha2_password BY '123456abc!';
+GRANT SELECT, UPDATE, DELETE,EXECUTE ON gardenshop.* TO 'user_gardenshop'@'localhost';
+GRANT EXECUTE ON gardenshop.* TO 'user_gardenshop'@'localhost';
+REVOKE ALL ON *.* FROM 'user_gardenshop'@'localhost';
+FLUSH PRIVILEGES;
+
+SET PERSIST partial_revokes = ON;
+GRANT SELECT, INSERT, UPDATE, DELETE ON gardenshop.plant TO 'user_gardenshop'@'localhost';
+REVOKE INSERT ON gardenshop.plant FROM 'user_gardenshop'@'localhost';
+SHOW GRANTS FOR user_gardenshop@localhost;
+
+GRANT SELECT, DELETE, EXECUTE ON gardenshop.plant TO 'user_gardenshop'@'localhost';
+GRANT UPDATE,INSERT ON gardenshop.customer TO 'user_gardenshop'@'localhost';
+GRANT UPDATE,INSERT ON gardenshop.flowercolor TO 'user_gardenshop'@'localhost';
+GRANT UPDATE,INSERT ON gardenshop.plant_floercolor TO 'user_gardenshop'@'localhost';
+GRANT SELECT, DELETE, EXECUTE ON gardenshop.pricelist TO 'user_gardenshop'@'localhost';
+GRANT UPDATE,INSERT ON gardenshop.sale TO 'user_gardenshop'@'localhost';
+GRANT SELECT, DELETE, EXECUTE ON gardenshop.supplier TO 'user_gardenshop'@'localhost';
+
+
 
 
